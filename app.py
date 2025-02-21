@@ -1,10 +1,30 @@
 import streamlit as st
 import pandas as pd
 
+def calculate_monthly_revenue(unit_count, rent_per_unit):
+    return unit_count * rent_per_unit
+
+def calculate_annual_revenue(monthly_revenue):
+    return monthly_revenue * 12
+
+def calculate_unit_mix(unit_count, total_units):
+    return (unit_count / total_units) * 100 if total_units > 0 else 0
+
+def calculate_bed_mix(num_beds, unit_count, total_beds):
+    return (num_beds * unit_count / total_beds) * 100 if total_beds > 0 else 0
+
 def main():
     st.set_page_config(layout="wide")  # Expands to use full screen width
     
     st.title("Ryan's Commercial Multifamily Underwriting")
+    
+    # Initialize session state variables if they don't exist
+    if "total_units" not in st.session_state:
+        st.session_state.total_units = 0
+    if "total_beds" not in st.session_state:
+        st.session_state.total_beds = 0
+    if "total_affordable_units" not in st.session_state:
+        st.session_state.total_affordable_units = 0
     
     # Create Tabs for the entire roadmap
     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
@@ -24,19 +44,24 @@ def main():
             num_units = st.number_input("Number of Unit Types", min_value=1, value=3, step=1, label_visibility="collapsed")
             
             unit_data = []
+            st.session_state.total_units = 0  # Reset total units
+            st.session_state.total_beds = 0  # Reset total beds
+            st.session_state.total_affordable_units = 0  # Reset total affordable units
+            
             for i in range(num_units):
                 with st.container():
-                    st.markdown(f"### Unit Type {i+1}")
-                    col1, col2, col3, col4, col5, col6, col7 = st.columns([1.5, 1, 1, 1, 1, 1, 1])
+                    # Use letters (A, B, C, etc.) for unit type placeholders
+                    unit_type_placeholder = chr(65 + i)  # 65 is ASCII for 'A'
+                    st.markdown(f"### Unit Type {unit_type_placeholder}")
+                    col1, col2, col3, col4, col5, col6, col7, col8 = st.columns([1.5, 1, 1, 1, 1, 1, 1, 1])
                     with col1:
-                        unit_type = st.text_input(f"Unit Type {i+1}", value=f"{i+1}", key=f"unit_type_{i}")
+                        unit_type = st.text_input(f"Unit Type {unit_type_placeholder}", value=unit_type_placeholder, key=f"unit_type_{i}")
                     with col2:
                         bedrooms = st.number_input(f"Bedrooms {unit_type}", min_value=0, step=1, value=1, key=f"bedrooms_{i}")
                     with col3:
                         bathrooms = st.number_input(f"Bathrooms {unit_type}", min_value=1, step=1, value=1, key=f"bathrooms_{i}")
                     with col4:
                         unit_sf = st.number_input(f"Unit SF {unit_type}", min_value=100, step=50, value=500, key=f"unit_sf_{i}")
-                    
                     with col5:
                         rent_option = st.radio(f"Rent Input Type for {unit_type}", ["Per SF", "Per Unit"], key=f"rent_option_{i}")
                     with col6:
@@ -48,68 +73,110 @@ def main():
                             rent_per_sf = rent_per_unit / unit_sf
                     with col7:
                         unit_count = st.number_input(f"Unit Count {unit_type}", min_value=1, step=1, value=10, key=f"unit_count_{i}")
+                    with col8:
+                        num_beds = st.number_input(f"Number of Beds {unit_type}", min_value=0, step=1, value=1, key=f"num_beds_{i}")
                     
-                    total_monthly_revenue = rent_per_unit * unit_count
-                    total_annual_revenue = total_monthly_revenue * 12
+                    total_monthly_revenue = calculate_monthly_revenue(unit_count, rent_per_unit)
+                    total_annual_revenue = calculate_annual_revenue(total_monthly_revenue)
                     
-                    # Calculate unit mix percentage
-                    unit_mix_pct = (unit_count / num_units) * 100
+                    # Add to total units and beds for mix calculations
+                    st.session_state.total_units += unit_count
+                    st.session_state.total_beds += num_beds * unit_count
                     
-                    unit_data.append([unit_type, bedrooms, bathrooms, unit_sf, rent_per_sf, rent_per_unit, unit_count, total_monthly_revenue, total_annual_revenue, unit_mix_pct])
+                    # Append unit data (unit mix and bed mix will be calculated later)
+                    unit_data.append([unit_type, bedrooms, bathrooms, unit_sf, rent_per_sf, rent_per_unit, unit_count, num_beds, total_monthly_revenue, total_annual_revenue])
                     
                     is_affordable = st.checkbox(f"Affordable {unit_type}", key=f"affordable_{i}")
                     
                     if is_affordable:
                         with st.container():
                             st.markdown(f"#### Affordable Version of {unit_type}")
-                            col8, col9, col10 = st.columns([1, 1, 1])
-                            with col8:
-                                affordable_units = st.number_input(f"Affordable Units for {unit_type}", min_value=1, max_value=unit_count, step=1, value=unit_count, key=f"aff_units_{i}")
+                            col9, col10, col11 = st.columns([1, 1, 1])
                             with col9:
-                                mfi_percentage = st.number_input(f"% MFI for {unit_type}", min_value=0, max_value=100, step=1, value=60, key=f"mfi_{i}")
+                                affordable_units = st.number_input(f"Affordable Units for {unit_type}", min_value=1, max_value=unit_count, step=1, value=unit_count, key=f"aff_units_{i}")
                             with col10:
+                                mfi_percentage = st.number_input(f"% MFI for {unit_type}", min_value=0, max_value=100, step=1, value=60, key=f"mfi_{i}")
+                            with col11:
                                 mfi_value = st.number_input(f"MFI Value for {unit_type}", min_value=0, step=1000, value=50000, key=f"mfi_value_{i}")
                             
                             affordable_rent_per_unit = (mfi_value * (mfi_percentage / 100)) / 12
-                            affordable_total_monthly_revenue = affordable_units * affordable_rent_per_unit
-                            affordable_total_annual_revenue = affordable_total_monthly_revenue * 12
+                            affordable_total_monthly_revenue = calculate_monthly_revenue(affordable_units, affordable_rent_per_unit)
+                            affordable_total_annual_revenue = calculate_annual_revenue(affordable_total_monthly_revenue)
                             
-                            # Calculate affordable unit mix percentage
-                            affordable_unit_mix_pct = (affordable_units / num_units) * 100
+                            # Add to total affordable units
+                            st.session_state.total_affordable_units += affordable_units
                             
-                            unit_data.append([f"{unit_type} (Affordable)", bedrooms, bathrooms, unit_sf, rent_per_sf, affordable_rent_per_unit, affordable_units, affordable_total_monthly_revenue, affordable_total_annual_revenue, affordable_unit_mix_pct])
+                            # Append affordable unit data
+                            unit_data.append([f"{unit_type} (Affordable)", bedrooms, bathrooms, unit_sf, rent_per_sf, affordable_rent_per_unit, affordable_units, num_beds, affordable_total_monthly_revenue, affordable_total_annual_revenue])
             
             # Create DataFrame
             df_income = pd.DataFrame(unit_data, columns=[
                 "Unit Type", "Bedrooms", "Bathrooms", "Unit SF", "Rent per SF", "Rent per Unit",
-                "Unit Count", "Total Monthly Revenue", "Total Annual Revenue", "Unit Mix %"
+                "Unit Count", "Number of Beds", "Total Monthly Revenue", "Total Annual Revenue"
             ])
+            
+            # Calculate Unit Mix % and Bed Mix %
+            df_income["Unit Mix %"] = df_income["Unit Count"].apply(lambda x: calculate_unit_mix(x, st.session_state.total_units))
+            df_income["Bed Mix %"] = df_income.apply(lambda row: calculate_bed_mix(row["Number of Beds"], row["Unit Count"], st.session_state.total_beds), axis=1)
+            
+            # Move "Unit Mix %" and "Bed Mix %" columns next to "Unit Type"
+            cols = df_income.columns.tolist()
+            cols = cols[:1] + [cols[-2], cols[-1]] + cols[1:-2]  # Reorder columns
+            df_income = df_income[cols]
             
             # Append summary row at the bottom
             summary_row = pd.DataFrame({
                 "Unit Type": ["TOTAL / AVERAGE"],
+                "Unit Mix %": ["-"],
+                "Bed Mix %": ["-"],
                 "Bedrooms": ["-"],
                 "Bathrooms": ["-"],
                 "Unit SF": [df_income["Unit SF"].mean()],
                 "Rent per SF": [df_income["Rent per SF"].mean()],
                 "Rent per Unit": [df_income["Rent per Unit"].mean()],
                 "Unit Count": [df_income["Unit Count"].sum()],
+                "Number of Beds": [df_income["Number of Beds"].sum()],
                 "Total Monthly Revenue": [df_income["Total Monthly Revenue"].sum()],
-                "Total Annual Revenue": [df_income["Total Annual Revenue"].sum()],
-                "Unit Mix %": ["-"]
+                "Total Annual Revenue": [df_income["Total Annual Revenue"].sum()]
             })
             df_income = pd.concat([df_income, summary_row], ignore_index=True)
             
             # Format columns
+            df_income["Unit SF"] = df_income["Unit SF"].apply(lambda x: f'{int(x):,}' if isinstance(x, (int, float)) else x)  # No decimals
             df_income["Rent per SF"] = df_income["Rent per SF"].apply(lambda x: f'$ {x:.2f}')
             df_income["Rent per Unit"] = df_income["Rent per Unit"].apply(lambda x: f'$ {x:,.0f}')
+            df_income["Total Monthly Revenue"] = df_income["Total Monthly Revenue"].apply(lambda x: f'$ {x:,.0f}')
+            df_income["Total Annual Revenue"] = df_income["Total Annual Revenue"].apply(lambda x: f'$ {x:,.0f}')
             df_income["Unit Mix %"] = df_income["Unit Mix %"].apply(lambda x: f'{x:.1f}%' if isinstance(x, (int, float)) else x)
+            df_income["Bed Mix %"] = df_income["Bed Mix %"].apply(lambda x: f'{x:.1f}%' if isinstance(x, (int, float)) else x)
+            
+            # Format summary row differently
+            df_income.iloc[-1, df_income.columns.get_loc("Unit Type")] = "TOTAL / AVERAGE"  # No bold text
+            for col in ["Unit SF", "Rent per SF", "Rent per Unit", "Unit Count", "Number of Beds", "Total Monthly Revenue", "Total Annual Revenue"]:
+                df_income.iloc[-1, df_income.columns.get_loc(col)] = f'{df_income.iloc[-1][col]}'  # No bold text
         
         # Update Output Section
         with output_container:
             st.markdown("---")  # Line separator for clarity
-            st.dataframe(df_income, use_container_width=True)
+            st.dataframe(
+                df_income.style.apply(
+                    lambda x: ["background: lightgray; font-weight: bold" if x.name == len(df_income)-1 else "" for i in x],
+                    axis=1
+                ),
+                use_container_width=True
+            )
             st.markdown("---")  # Line separator for clarity
+            
+            # Affordable Analytics
+            st.subheader("Affordable Analytics")
+            affordable_pct = st.number_input("Affordable %", min_value=0.0, max_value=100.0, value=0.0, step=0.1)
+            affordable_req = (affordable_pct / 100) * st.session_state.total_units
+            affordable_planned = st.session_state.total_affordable_units
+            satisfied_requirement = affordable_planned >= affordable_req
+            
+            st.write(f"Affordable Requirement: {affordable_req:.0f}")
+            st.write(f"Affordable Planned: {affordable_planned}")
+            st.write(f"Satisfied Requirement: {satisfied_requirement}")
     
 if __name__ == "__main__":
     main()
