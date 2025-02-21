@@ -1,7 +1,7 @@
 import streamlit as st
 
 def main():
-    st.title("Commercial Multifamily Underwriting")
+    st.title("Lolita the Vladivostok Spy")
     st.write("Welcome to your web-based underwriting tool!")
     
     # Basic File Upload
