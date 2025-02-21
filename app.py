@@ -49,29 +49,15 @@ def main():
                     with col7:
                         unit_count = st.number_input(f"Unit Count {unit_type}", min_value=1, step=1, value=10, key=f"unit_count_{i}")
                     
-                    is_affordable = st.checkbox(f"Affordable {unit_type}", key=f"affordable_{i}")
-                    
                     total_monthly_revenue = rent_per_unit * unit_count
                     total_annual_revenue = total_monthly_revenue * 12
                     
-                    unit_data.append([unit_type, bedrooms, bathrooms, unit_sf, rent_per_sf, rent_per_unit, unit_count, total_monthly_revenue, total_annual_revenue])
+                    # Calculate unit mix percentage
+                    unit_mix_pct = (unit_count / num_units) * 100
                     
-                    if is_affordable:
-                        with st.container():
-                            st.markdown(f"#### Affordable Version of {unit_type}")
-                            col8, col9, col10 = st.columns([1, 1, 1])
-                            with col8:
-                                affordable_units = st.number_input(f"Affordable Units for {unit_type}", min_value=1, max_value=unit_count, step=1, value=unit_count, key=f"aff_units_{i}_aff")
-                            with col9:
-                                mfi_percentage = st.number_input(f"% MFI for {unit_type}", min_value=0, max_value=100, step=1, value=60, key=f"mfi_{i}_aff")
-                            with col10:
-                                mfi_value = st.number_input(f"MFI Value for {unit_type}", min_value=0, step=1000, value=50000, key=f"mfi_value_{i}_aff")
-                            
-                            affordable_rent_per_unit = (mfi_value * (mfi_percentage / 100)) / 12
-                            affordable_total_monthly_revenue = affordable_units * affordable_rent_per_unit
-                            affordable_total_annual_revenue = affordable_total_monthly_revenue * 12
-                            
-                            unit_data.append([f"{unit_type} (Affordable)", bedrooms, bathrooms, unit_sf, rent_per_sf, affordable_rent_per_unit, affordable_units, affordable_total_monthly_revenue, affordable_total_annual_revenue])
+                    unit_data.append([unit_type, bedrooms, bathrooms, unit_sf, rent_per_sf, rent_per_unit, unit_count, total_monthly_revenue, total_annual_revenue, unit_mix_pct])
+                    
+                    is_affordable = st.checkbox(f"Affordable {unit_type}", key=f"affordable_{i}")
                     
                     if is_affordable:
                         with st.container():
@@ -88,25 +74,20 @@ def main():
                             affordable_total_monthly_revenue = affordable_units * affordable_rent_per_unit
                             affordable_total_annual_revenue = affordable_total_monthly_revenue * 12
                             
-                            unit_data.append([f"{unit_type} (Affordable)", bedrooms, bathrooms, unit_sf, rent_per_sf, affordable_rent_per_unit, affordable_units, affordable_total_monthly_revenue, affordable_total_annual_revenue])
-                    
-                    
-                    
-                    
-                                                
-                                                
-                        
-                                                
-                    
-                    
+                            # Calculate affordable unit mix percentage
+                            affordable_unit_mix_pct = (affordable_units / num_units) * 100
+                            
+                            unit_data.append([f"{unit_type} (Affordable)", bedrooms, bathrooms, unit_sf, rent_per_sf, affordable_rent_per_unit, affordable_units, affordable_total_monthly_revenue, affordable_total_annual_revenue, affordable_unit_mix_pct])
             
+            # Create DataFrame
             df_income = pd.DataFrame(unit_data, columns=[
-                "Unit Type", "Bedrooms", "Bathrooms", "Unit SF", "Rent per SF", "Rent per Unit", "Unit Count", "Total Monthly Revenue", "Total Annual Revenue"
+                "Unit Type", "Bedrooms", "Bathrooms", "Unit SF", "Rent per SF", "Rent per Unit",
+                "Unit Count", "Total Monthly Revenue", "Total Annual Revenue", "Unit Mix %"
             ])
             
             # Append summary row at the bottom
             summary_row = pd.DataFrame({
-                "Unit Type": ["Total/Average"],
+                "Unit Type": ["TOTAL / AVERAGE"],
                 "Bedrooms": ["-"],
                 "Bathrooms": ["-"],
                 "Unit SF": [df_income["Unit SF"].mean()],
@@ -114,17 +95,17 @@ def main():
                 "Rent per Unit": [df_income["Rent per Unit"].mean()],
                 "Unit Count": [df_income["Unit Count"].sum()],
                 "Total Monthly Revenue": [df_income["Total Monthly Revenue"].sum()],
-                "Total Annual Revenue": [df_income["Total Annual Revenue"].sum()]
+                "Total Annual Revenue": [df_income["Total Annual Revenue"].sum()],
+                "Unit Mix %": ["-"]
             })
             df_income = pd.concat([df_income, summary_row], ignore_index=True)
-            df_income["Unit Count"] = df_income["Unit Count"].astype(int)
-            df_income["Rent per SF"] = df_income["Rent per SF"].apply(lambda x: f'${x:.2f}')
-            df_income["Rent per Unit"] = df_income["Rent per Unit"].apply(lambda x: f'${x:,.0f}')
-                        df_income.loc[len(df_income)-1, "Unit Type"] = "🔹 **Total/Average** 🔹"
-            df_income.loc[len(df_income)-1, ["Unit SF", "Rent per SF", "Rent per Unit", "Unit Count", "Total Monthly Revenue", "Total Annual Revenue"]] = df_income.loc[len(df_income)-1, ["Unit SF", "Rent per SF", "Rent per Unit", "Unit Count", "Total Monthly Revenue", "Total Annual Revenue"]].apply(lambda x: f'🔹 **{x}** 🔹')
             
-        # Update Output Section
+            # Format columns
+            df_income["Rent per SF"] = df_income["Rent per SF"].apply(lambda x: f'$ {x:.2f}')
+            df_income["Rent per Unit"] = df_income["Rent per Unit"].apply(lambda x: f'$ {x:,.0f}')
+            df_income["Unit Mix %"] = df_income["Unit Mix %"].apply(lambda x: f'{x:.1f}%' if isinstance(x, (int, float)) else x)
         
+        # Update Output Section
         with output_container:
             st.markdown("---")  # Line separator for clarity
             st.dataframe(df_income, use_container_width=True)
